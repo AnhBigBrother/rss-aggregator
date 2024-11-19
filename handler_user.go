@@ -6,7 +6,6 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/AnhBigBrother/rss-aggregator/internal/auth"
 	"github.com/AnhBigBrother/rss-aggregator/internal/database"
 	"github.com/google/uuid"
 )
@@ -19,7 +18,7 @@ func (apiCfg *apiConfig) handlerCreateUser(w http.ResponseWriter, r *http.Reques
 	params := parameter{}
 	err := decoder.Decode(&params)
 	if err != nil {
-		errResponse(w, 400, fmt.Sprintf("Error parsing JSON: %v", err))
+		responseErr(w, 400, fmt.Sprintf("Error parsing JSON: %v", err))
 		return
 	}
 
@@ -30,20 +29,24 @@ func (apiCfg *apiConfig) handlerCreateUser(w http.ResponseWriter, r *http.Reques
 		UpdatedAt: time.Now().UTC(),
 	})
 	if err != nil {
-		errResponse(w, 400, fmt.Sprintf("Could not create user: %v", err))
-	}
-	jsonResponse(w, 200, databaseUserToUser(user))
-}
-
-func (apiCfg *apiConfig) handlerGetUser(w http.ResponseWriter, r *http.Request) {
-	apiKey, err := auth.GetApiKey(r.Header)
-	if err != nil {
-		errResponse(w, 401, fmt.Sprintf("Auth error: %v", err))
-	}
-	user, err := apiCfg.DB.GetUserByApiKey(r.Context(), apiKey)
-	if err != nil {
-		errResponse(w, 400, fmt.Sprintf("couldn't get user: %v", err))
+		responseErr(w, 400, fmt.Sprintf("Could not create user: %v", err))
 		return
 	}
-	jsonResponse(w, 200, databaseUserToUser(user))
+	responseJson(w, 201, databaseUserToUser(user))
+}
+
+func (apiCfg *apiConfig) handlerGetUser(w http.ResponseWriter, r *http.Request, user database.User) {
+	responseJson(w, 200, databaseUserToUser(user))
+}
+
+func (apiCfg *apiConfig) handlerGetPostFollowed(w http.ResponseWriter, r *http.Request, user database.User) {
+	posts, err := apiCfg.DB.GetPostFollowed(r.Context(), database.GetPostFollowedParams{
+		UserID: user.ID,
+		Limit:  10,
+	})
+	if err != nil {
+		responseErr(w, 400, fmt.Sprintf("Couldn't get posts: %v", err))
+		return
+	}
+	responseJson(w, 200, databasePostsToPosts(posts))
 }
